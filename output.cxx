@@ -28,7 +28,8 @@ namespace std { using ::snprintf; }
 Output::Output(const Param& param, double start_time, int start_frame) :
     modelname(param.sim.modelname),
     start_time(start_time),
-    average_interval(param.sim.output_averaged_fields),
+    is_averaged(param.sim.is_outputting_averaged_fields),
+    average_interval(param.mesh.quality_check_step_interval),
     has_marker_output(param.sim.has_marker_output),
     frame(start_frame),
     time0(0)

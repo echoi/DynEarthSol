@@ -9,7 +9,7 @@ options:
     -c          save files in current directory (default: same directory as
                 the data files)
     -m          save marker data
-    -p          save P-axis and T-axis
+    -p          save principal components (s1 and s3) of deviatoric stress
     -t          save all tensor components (default: only 1st/2nd invariants)
     -h,--help   show this help
 
@@ -35,8 +35,8 @@ output_in_cwd = False
 # Save indivisual components?
 output_tensor_components = False
 
-# Save P-/T-axis
-output_pt_axis = False
+# Save principal stresses
+output_principal_stress = False
 
 # Save markers?
 output_markers = False
@@ -155,10 +155,10 @@ def main(modelname, start, end, delta):
                     vtk_dataarray(fvtu, stress[:,d] - tI, 'stress ' + des.component_names[d] + ' dev.')
                 for d in range(des.ndims, des.nstr):
                     vtk_dataarray(fvtu, stress[:,d], 'stress ' + des.component_names[d])
-            if output_pt_axis:
-                p_axis, t_axis = compute_pt_axis(stress)
-                vtk_dataarray(fvtu, p_axis, 'P-axis', 3)
-                vtk_dataarray(fvtu, t_axis, 'T-axis', 3)
+            if output_principal_stress:
+                s1, s3 = compute_principal_stress(stress)
+                vtk_dataarray(fvtu, s1, 's1', 3)
+                vtk_dataarray(fvtu, s3, 's3', 3)
 
             convert_field(des, frame, 'density', fvtu)
             convert_field(des, frame, 'material', fvtu)
@@ -415,15 +415,15 @@ def second_invariant(t):
                         t[:,3]**2 + t[:,4]**2 + t[:,5]**2)
 
 
-def compute_pt_axis(stress):
-    '''The compression and dilation axis of the deviatoric stress tensor.'''
+def compute_principal_stress(stress):
+    '''The principal stress (s1 and s3) of the deviatoric stress tensor.'''
 
     nelem = stress.shape[0]
     nstr = stress.shape[1]
     # VTK requires vector field (velocity, coordinate) has 3 components.
     # Allocating a 3-vector tmp array for VTK data output.
-    p_axis = np.zeros((nelem, 3), dtype=stress.dtype)
-    t_axis = np.zeros((nelem, 3), dtype=stress.dtype)
+    s1 = np.zeros((nelem, 3), dtype=stress.dtype)
+    s3 = np.zeros((nelem, 3), dtype=stress.dtype)
 
     if nstr == 3:  # 2D
         sxx, szz, sxz = stress[:,0], stress[:,1], stress[:,2]
@@ -432,10 +432,10 @@ def compute_pt_axis(stress):
         cost = np.cos(theta)
         sint = np.sin(theta)
 
-        p_axis[:,0] = mag * sint
-        p_axis[:,1] = mag * cost
-        t_axis[:,0] = mag * cost
-        t_axis[:,1] = -mag * sint
+        s1[:,0] = mag * sint
+        s1[:,1] = mag * cost
+        s3[:,0] = mag * cost
+        s3[:,1] = -mag * sint
 
     else:  # 3D
         # lower part of symmetric stress tensor
@@ -466,10 +466,10 @@ def compute_pt_axis(stress):
         #print(w.shape, v.shape, p.shape)
 
         for e in range(nelem):
-            p_axis[e,:] = (w[e,p[e]] - m[e]) * v[e,:,p[e]]
-            t_axis[e,:] = (w[e,t[e]] - m[e]) * v[e,:,t[e]]
+            s1[e,:] = (w[e,p[e]] - m[e]) * v[e,:,p[e]]
+            s3[e,:] = (w[e,t[e]] - m[e]) * v[e,:,t[e]]
 
-    return p_axis, t_axis
+    return s1, s3
 
 
 if __name__ == '__main__':
@@ -488,7 +488,7 @@ if __name__ == '__main__':
     if '-c' in sys.argv:
         output_in_cwd = True
     if '-p' in sys.argv:
-        output_pt_axis = True
+        output_principal_stress = True
     if '-t' in sys.argv:
         output_tensor_components = True
     if '-m' in sys.argv:

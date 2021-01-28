@@ -37,9 +37,9 @@ struct Sim {
     double output_time_interval_in_yr;
     int max_steps;
     int output_step_interval;
-    int output_averaged_fields;
     int checkpoint_frame_interval;
     int restarting_from_frame;
+    bool is_outputting_averaged_fields;
     bool is_restarting;
     bool has_initial_checkpoint;
     bool has_output_during_remeshing;
@@ -70,6 +70,13 @@ struct Mesh {
 
     bool is_discarding_internal_segments;
     int remeshing_option;
+
+    // Parameters for mesh optimizer MMG
+    int mmg_debug;
+    int mmg_verbose;
+    double mmg_hmax_factor;
+    double mmg_hmin_factor;
+    double mmg_hausd_factor;
 };
 
 struct Control {

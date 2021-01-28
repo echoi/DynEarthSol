@@ -213,7 +213,7 @@ static void elasto_plastic(double bulkm, double shearm,
 
         // 2nd invariant of plastic strain
 #ifdef THREED
-        /* // plastic strain in the principle directions, depls2 is always 0
+        /* // plastic strain in the principal directions, depls2 is always 0
          * double depls1 = alam;
          * double depls3 = -alam * anpsi;
          * double deplsm = (depls1 + depls3) / 3;
@@ -225,7 +225,7 @@ static void elasto_plastic(double bulkm, double shearm,
         // the equations above can be reduce to:
         depls = std::fabs(alam) * std::sqrt((7 + 4*anpsi + 7*anpsi*anpsi) / 18);
 #else
-        /* // plastic strain in the principle directions
+        /* // plastic strain in the principal directions
          * double depls1 = alam;
          * double depls2 = -alam * anpsi;
          * double deplsm = (depls1 + depls2) / 2;

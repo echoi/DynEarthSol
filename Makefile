@@ -18,9 +18,10 @@
 ndims = 3
 opt = 2
 openmp = 1
-useadapt = 1
-adaptive_time_step = 1
-use_R_S = 1
+useadapt = 0
+usemmg = 0
+adaptive_time_step = 0
+use_R_S = 0
 useexo = 0
 usecuda = 1
 
@@ -108,6 +109,25 @@ ifeq ($(useexo), 1)
 	endif
 endif
 
+ifeq ($(usemmg), 1)
+	# path to MMG3D header files
+	MMG_INCLUDE = ${HOME}/opt/mmg/Release/include
+
+	# path of MMG3D library files, if not in standard system location
+	MMG_LIB_DIR = ${HOME}/opt/mmg/Release/lib
+
+	MMG_CXXFLAGS = -I$(MMG_INCLUDE) -DUSEMMG
+	ifeq ($(ndims), 3)	
+		MMG_LDFLAGS = -L$(MMG_LIB_DIR) -lmmg3d
+	else
+		MMG_LDFLAGS = -L$(MMG_LIB_DIR) -lmmg2d
+	endif
+	ifneq ($(OSNAME), Darwin)  # Apple's ld doesn't support -rpath
+		MMG_LDFLAGS += -Wl,-rpath=$(MMG_LIB_DIR)
+	endif
+endif
+
+
 ifneq (, $(findstring g++, $(CXX_BACKEND))) # if using any version of g++
 	CXXFLAGS = -g -std=c++0x
 	LDFLAGS = -lm
@@ -165,10 +185,12 @@ all:
 	@false
 endif
 
-## Is this a mercurial repository?
-HAS_HG := $(shell hg log -r tip --template '{node}' 2>/dev/null)
-
-##
+## Is git in the path?
+HAS_GIT := $(shell git --version 2>/dev/null)
+ifneq ($(HAS_GIT),)
+        ## Is this a git repository?
+        IS_REPO := $(shell git rev-parse --s-inside-work-tree 2>/dev/null)
+endif
 
 SRCS =	\
 	barycentric-fn.cxx \
@@ -255,6 +277,11 @@ ifeq ($(useexo), 1)
 	LDFLAGS += $(EXO_LDFLAGS)
 endif
 
+ifeq ($(usemmg), 1)
+	CXXFLAGS += $(MMG_CXXFLAGS)
+	LDFLAGS += $(MMG_LDFLAGS)
+endif
+
 C3X3_DIR = 3x3-C
 C3X3_LIBNAME = 3x3
 
@@ -310,13 +337,13 @@ $(EXE): $(M_OBJS) $(C3X3_DIR)/lib$(C3X3_LIBNAME).a $(ANN_DIR)/lib/lib$(ANN_LIBNA
 			$(LIBADAPTIVITY_LIBS) \
 			-o $@
 endif
-#ifeq ($(OSNAME), Darwin)  # fix for dynamic library problem on Mac
-#		install_name_tool -change libboost_program_options.dylib $(BOOST_LIB_DIR)/libboost_program_options.dylib $@
-##ifeq ($(useexo), 1)  # fix for dynamic library problem on Mac
-##		install_name_tool -change libexodus.dylib $(EXO_LIB_DIR)/libexodus.dylib $@
-##endif
-#endif
-else
+ifeq ($(OSNAME), Darwin)  # fix for dynamic library problem on Mac
+		install_name_tool -change libboost_program_options.dylib $(BOOST_LIB_DIR)/libboost_program_options.dylib $@
+ifeq ($(useexo), 1)  # fix for dynamic library problem on Mac
+		install_name_tool -change libexodus.dylib $(EXO_LIB_DIR)/libexodus.dylib $@
+endif
+endif
+else # IF useadapt is 0
 ifeq ($(usecuda), 1)
 $(EXE): $(M_OBJS) $(CUDA_OBJS) $(OBJS) $(C3X3_DIR)/lib$(C3X3_LIBNAME).a $(ANN_DIR)/lib/lib$(ANN_LIBNAME).a
 		$(CXX) $(M_OBJS) $(CUDA_OBJS) $(OBJS) $(LDFLAGS) $(BOOST_LDFLAGS) $(CUDA_LDFLAGS) \
@@ -333,27 +360,47 @@ ifeq ($(OSNAME), Darwin)  # fix for dynamic library problem on Mac
 ifeq ($(useexo), 1)  # fix for dynamic library problem on Mac
 		install_name_tool -change libexodus.dylib $(EXO_LIB_DIR)/libexodus.dylib $@
 endif
+ifeq ($(usemmg), 1)  # fix for dynamic library problem on Mac
+ifeq ($(ndims), 3)
+		install_name_tool -change libmmg3d.dylib $(MMG_LIB_DIR)/libmmg3d.dylib $@
+else
+		install_name_tool -change libmmg2d.dylib $(MMG_LIB_DIR)/libmmg2d.dylib $@
 endif
-endif
+endif # end of usemmg
+endif # end of Darwin
+endif # end of useadapt
 
 take-snapshot:
 	@# snapshot of the code for building the executable
 	@echo Flags used to compile the code: > snapshot.diff
 	@echo '  '  CXX=$(CXX) opt=$(opt) openmp=$(openmp) >> snapshot.diff
+	@echo '  '  CXXFLAGS=$(CXXFLAGS) >> snapshot.diff
+	@echo '  '  LDFLAGS=$(LDFLAGS) >> snapshot.diff
 	@echo '  '  PATH=$(PATH) >> snapshot.diff
 	@echo '  '  LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) >> snapshot.diff
-ifneq ($(HAS_HG),)
 	@echo >> snapshot.diff
 	@echo >> snapshot.diff
+ifneq ($(HAS_GIT),)
+ifneq ($(IS_REPO),)
 	@echo '==== Summary of the code ====' >> snapshot.diff
-	@hg summary >> snapshot.diff
+	@git show -s >> snapshot.diff
 	@echo >> snapshot.diff
+	@echo >> snapshot.diff
+	@git status >> snapshot.diff
 	@echo >> snapshot.diff
 	@echo '== Code modification (not checked-in) ==' >> snapshot.diff
-	@hg diff >> snapshot.diff
-	@hg log --patch -r "draft()" >> snapshot.diff
+	@echo >> snapshot.diff
+	@git diff >> snapshot.diff
+	@echo >> snapshot.diff
+	@echo '== Code modification (checked-in but not in "origin") ==' >> snapshot.diff
+	@echo >> snapshot.diff
+	@git log --patch -- origin..HEAD >> snapshot.diff
 else
-	@echo \'hg\' is not in path, cannot take code snapshot. >> snapshot.diff
+	@echo "Warning: Not a git repository. Cannot take code snapshot." | tee -a snapshot.diff
+	@echo "Warning: Use 'git clone' to copy the code!" | tee -a snapshot.diff
+endif
+else
+	@echo "'git' is not in path, cannot take code snapshot." >> snapshot.diff
 endif
 
 $(OBJS): %.$(ndims)d.o : %.cxx $(INCS)
